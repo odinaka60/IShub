@@ -104,10 +104,10 @@ const App: React.FC = () => {
 
   const renderContent = () => {
     if (isLoading) {
-      let message = "Building your profile...";
-      if (appState === 'RECOMMENDATIONS') message = "Finding the best universities for you...";
-      if (appState === 'PLAN') message = "Crafting your detailed application plan...";
-      if (appState === 'TASK_ASSISTANCE') message = "Getting some expert advice for you...";
+      let message = "Finding the best universities for you...";
+      if (appState === 'RECOMMENDATIONS') message = "Crafting your detailed application plan...";
+      if (appState === 'PLAN') message = "Getting some expert advice for you...";
+      if (appState === 'TASK_ASSISTANCE') message = "Loading...";
       return <LoadingSpinner message={message} />;
     }
     
