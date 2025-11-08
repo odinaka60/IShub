@@ -9,6 +9,65 @@ interface TaskAssistanceProps {
 }
 
 const TaskAssistance: React.FC<TaskAssistanceProps> = ({ task, assistance, onBack }) => {
+
+  const renderFormattedAssistance = (text: string) => {
+    const lines = text.split('\n');
+    // FIX: Changed JSX.Element to React.ReactElement to resolve "Cannot find namespace 'JSX'" error.
+    const elements: React.ReactElement[] = [];
+    // FIX: Changed JSX.Element to React.ReactElement to resolve "Cannot find namespace 'JSX'" error.
+    let listItems: React.ReactElement[] = [];
+    let currentListType: 'ol' | 'ul' | null = null;
+
+    const flushList = () => {
+      if (listItems.length > 0) {
+        const key = `${currentListType}-${elements.length}`;
+        if (currentListType === 'ol') {
+          elements.push(<ol key={key} className="list-decimal list-inside space-y-2 mb-4 pl-4">{listItems}</ol>);
+        } else if (currentListType === 'ul') {
+          elements.push(<ul key={key} className="list-disc list-inside space-y-2 mb-4 pl-4">{listItems}</ul>);
+        }
+        listItems = [];
+        currentListType = null;
+      }
+    };
+
+    lines.forEach((line, index) => {
+      const trimmedLine = line.trim();
+      
+      if (trimmedLine.length === 0) {
+          flushList();
+          return;
+      }
+
+      const isOl = /^\d+\.\s/.test(trimmedLine);
+      const isUl = /^[-*]\s/.test(trimmedLine);
+      
+      if (isOl) {
+        if (currentListType !== 'ol') {
+          flushList();
+          currentListType = 'ol';
+        }
+        listItems.push(<li key={`li-${index}`}>{trimmedLine.replace(/^\d+\.\s/, '')}</li>);
+      } else if (isUl) {
+        if (currentListType !== 'ul') {
+          flushList();
+          currentListType = 'ul';
+        }
+        listItems.push(<li key={`li-${index}`}>{trimmedLine.replace(/^[-*]\s/, '')}</li>);
+      } else if (trimmedLine.length < 80 && trimmedLine.endsWith(':')) {
+        flushList();
+        elements.push(<h5 key={`h5-${index}`} className="font-semibold text-gray-800 text-md mt-4 mb-2">{trimmedLine}</h5>);
+      } else {
+        flushList();
+        elements.push(<p key={`p-${index}`} className="mb-2 leading-relaxed">{trimmedLine}</p>);
+      }
+    });
+
+    flushList();
+    return elements;
+  };
+
+
   return (
     <div className="bg-white p-6 md:p-8 rounded-xl shadow-lg border border-gray-200 animate-fade-in">
       {/* Header */}
@@ -28,10 +87,8 @@ const TaskAssistance: React.FC<TaskAssistanceProps> = ({ task, assistance, onBac
       {/* AI Guidance */}
       <div>
         <h4 className="font-bold text-xl text-gray-700 mb-3">Your AI-Powered Guide</h4>
-        <div className="prose prose-blue max-w-none text-gray-700 bg-blue-50/50 p-4 rounded-lg border border-blue-100">
-           {assistance.split('\n').map((paragraph, index) => (
-             <p key={index}>{paragraph}</p>
-           ))}
+        <div className="text-gray-700 bg-blue-50/50 p-4 rounded-lg border border-blue-100">
+           {renderFormattedAssistance(assistance)}
         </div>
       </div>
 
