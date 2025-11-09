@@ -1,11 +1,9 @@
 import { GoogleGenAI, Modality, Type } from "@google/genai";
 import { UserProfile, University, ApplicationPlanData, ApplicationTask } from '../types';
 
-// This is a placeholder for the API key.
-// In a real-world scenario, this should be handled securely.
 const API_KEY = process.env.API_KEY;
 if (!API_KEY) {
-  // A simple check, though in a real app you might have more robust handling.
+ 
   console.warn("API_KEY environment variable not set. Gemini API calls will fail.");
 }
 
@@ -15,6 +13,36 @@ const cleanJsonString = (str: string): string => {
   const cleaned = str.replace(/```json\n?|```/g, '').trim();
   return cleaned;
 };
+
+// --- START: Added Retry Logic ---
+const MAX_RETRIES = 3;
+const INITIAL_BACKOFF_MS = 2000;
+
+const generateContentWithRetry = async (params: any) => {
+  let lastError: Error | null = null;
+  for (let i = 0; i < MAX_RETRIES; i++) {
+    try {
+      // Pass the params directly to the original function
+      return await ai.models.generateContent(params);
+    } catch (e) {
+      lastError = e as Error;
+      // Check for specific, retryable error messages from the Gemini API.
+      if (lastError.message.includes('503') || lastError.message.toLowerCase().includes('overloaded') || lastError.message.toLowerCase().includes('unavailable')) {
+        const delay = INITIAL_BACKOFF_MS * Math.pow(2, i);
+        console.warn(`Attempt ${i + 1}/${MAX_RETRIES} failed with a transient error. Retrying in ${delay}ms...`, lastError);
+        // Wait for the calculated delay before the next attempt.
+        await new Promise(resolve => setTimeout(resolve, delay));
+      } else {
+        // Not a retryable error, so re-throw it immediately.
+        throw lastError;
+      }
+    }
+  }
+  // If all retries fail, throw a new error that summarizes the failure.
+  console.error("All API call retries failed.", lastError);
+  throw new Error(`The AI service is currently unavailable after multiple attempts. Please try again later.`);
+};
+// --- END: Added Retry Logic ---
 
 export const getUniversityRecommendations = async (profile: UserProfile): Promise<University[]> => {
   const prompt = `
@@ -49,7 +77,7 @@ export const getUniversityRecommendations = async (profile: UserProfile): Promis
     }
   `;
 
-  const response = await ai.models.generateContent({
+  const response = await generateContentWithRetry({
     model: "gemini-2.5-flash",
     contents: prompt,
     config: {
@@ -102,7 +130,7 @@ export const getApplicationPlan = async (profile: UserProfile, universities: Uni
     }
   `;
 
-  const response = await ai.models.generateContent({
+  const response = await generateContentWithRetry({
     model: "gemini-2.5-pro",
     contents: prompt,
     config: {
@@ -172,7 +200,7 @@ export const getTaskAssistance = async (profile: UserProfile, universities: Univ
         5. Do NOT include any markdown formatting like "##" or "**". Just use plain text with newlines for paragraph breaks.
     `;
 
-    const response = await ai.models.generateContent({
+    const response = await generateContentWithRetry({
         model: "gemini-2.5-pro",
         contents: prompt,
     });
@@ -213,7 +241,7 @@ async function decodeAudioData(
 
 
 export const getTextToSpeechAudio = async (text: string): Promise<void> => {
-  const response = await ai.models.generateContent({
+  const response = await generateContentWithRetry({
     model: "gemini-2.5-flash-preview-tts",
     contents: [{ parts: [{ text }] }],
     config: {
