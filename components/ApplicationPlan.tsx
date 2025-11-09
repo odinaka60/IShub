@@ -20,28 +20,55 @@ const ApplicationPlan: React.FC<ApplicationPlanProps> = ({ userProfile, selected
   const [isSpeaking, setIsSpeaking] = useState(false);
 
   const handleDownloadPdf = async () => {
-    const element = planContentRef.current;
-    if (!element) return;
-    
-    const { jsPDF } = jspdf;
-    const pdf = new jsPDF('p', 'pt', 'a4');
-    
-    // Hide buttons before capture
-    const buttons = element.querySelectorAll('.task-help-button');
+    const contentToCapture = planContentRef.current;
+    if (!contentToCapture) return;
+
+    // Hide buttons during capture for a cleaner PDF
+    const buttons = contentToCapture.querySelectorAll('.task-help-button');
     buttons.forEach(btn => (btn as HTMLElement).style.display = 'none');
     
-    const canvas = await html2canvas(element, { scale: 2 });
+    // Use html2canvas to capture the entire content element, not just the visible part.
+    // The options scrollY, windowWidth, and windowHeight are key to capturing content that overflows the viewport.
+    const canvas = await html2canvas(contentToCapture, { 
+        scale: 2,
+        useCORS: true,
+        scrollY: -window.scrollY, 
+        windowWidth: contentToCapture.scrollWidth,
+        windowHeight: contentToCapture.scrollHeight
+    });
 
-    // Show buttons again after capture
+    // Restore button visibility after capture
     buttons.forEach(btn => (btn as HTMLElement).style.display = 'inline-flex');
 
     const imgData = canvas.toDataURL('image/png');
+    const { jsPDF } = jspdf;
     
-    const imgProps= pdf.getImageProperties(imgData);
-    const pdfWidth = pdf.internal.pageSize.getWidth();
-    const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+    const pdf = new jsPDF({
+        orientation: 'p',
+        unit: 'pt',
+        format: 'a4'
+    });
+
+    const imgProperties = pdf.getImageProperties(imgData);
+    const pdfPageWidth = pdf.internal.pageSize.getWidth();
+    const pdfPageHeight = pdf.internal.pageSize.getHeight();
+    const totalImageHeightInPDF = (imgProperties.height * pdfPageWidth) / imgProperties.width;
+
+    let heightLeft = totalImageHeightInPDF;
+    let position = 0;
+
+    // Add the first page/part of the image
+    pdf.addImage(imgData, 'PNG', 0, position, pdfPageWidth, totalImageHeightInPDF);
+    heightLeft -= pdfPageHeight;
+
+    // Loop to add more pages if the content is taller than a single page
+    while (heightLeft > 0) {
+      position -= pdfPageHeight; // Shift the image up for the next page
+      pdf.addPage();
+      pdf.addImage(imgData, 'PNG', 0, position, pdfPageWidth, totalImageHeightInPDF);
+      heightLeft -= pdfPageHeight;
+    }
     
-    pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
     pdf.save('Ishub-Application-Plan.pdf');
   };
   
